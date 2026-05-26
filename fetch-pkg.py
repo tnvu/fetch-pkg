@@ -72,29 +72,34 @@ def merge_pieces(pkg_pieces, pkg_fname, pkg_filesize, pkg_digest):
  
 
 def main(argv):
-    json_url = argv[1]
-    json_data = get_package_json(json_url)
-    pkg_fname = os.path.basename(argv[1].replace('.json', '.pkg'))
-    pkg_filesize = json_data['originalFileSize']
-    pkg_digest = json_data['packageDigest'].lower()
-    print(f'{pkg_fname} | {pkg_filesize} | {pkg_digest}')
+    for json_url in argv[1:]:
+        if json_url.endswith('.crc'):
+            json_url = json_url.removesuffix('.crc') + '.json'
+        json_data = get_package_json(json_url)
+        pkg_fname = os.path.basename(json_url).removesuffix('.json') + '.pkg'
+        pkg_filesize = json_data['originalFileSize']
+        pkg_digest = json_data['packageDigest'].lower()
+        print(f'{pkg_fname} | {pkg_filesize} | {pkg_digest}')
+        
+        if os.path.isfile(pkg_fname) and os.path.getsize(pkg_fname) == pkg_filesize:
+            print('  Package already downloaded')
+            continue
 
-    pkg_pieces = json_data['pieces']
-    pkg_pieces.sort(key=lambda x: x['fileOffset']) # sort according to file offsets
-    
-    success = True
-    for p in pkg_pieces:
-        p['fname'] = os.path.basename(p['url'])
-        if not get_package_piece(p['url'], p['fileSize'], p['hashValue'].lower(), p['fname']):
-            success = False
-    if not success:
-        return
-    
-    if not merge_pieces(pkg_pieces, pkg_fname, pkg_filesize, pkg_digest):
-        print("Error merging package pieces")
-        return
-    for p in pkg_pieces:
-        os.remove(p['fname'])
+        pkg_pieces = json_data['pieces']
+        pkg_pieces.sort(key=lambda x: x['fileOffset']) # sort according to file offsets
+
+        success = True
+        for p in pkg_pieces:
+            p['fname'] = os.path.basename(p['url'])
+            if not get_package_piece(p['url'], p['fileSize'], p['hashValue'].lower(), p['fname']):
+                success = False
+        if not success:
+            continue
+        if not merge_pieces(pkg_pieces, pkg_fname, pkg_filesize, pkg_digest):
+            print("Error merging package pieces")
+            continue
+        for p in pkg_pieces:
+            os.remove(p['fname'])
 
 
 if __name__ == '__main__':
